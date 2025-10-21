@@ -1,0 +1,64 @@
+# Name der Pipeline
+name: Build, Push, and Deploy
+
+on:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    
+    permissions:
+      contents: read
+      packages: write
+
+    env:
+      # Dein korrekter Image-Name
+      IMAGE_NAME: ghcr.io/pasgrimm14/penguin_classifier 
+      
+    steps:
+      # 1. Schritt: Code holen
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # 2. Schritt: Bei der GitHub Registry (GHCR) anmelden
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # 3. Schritt: Docker-Image bauen und hochladen
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: . 
+          push: true
+          tags: ${{ env.IMAGE_NAME }}:latest
+
+      # 4. SCHRITT (NEU): Auf Server einloggen und Container aktualisieren
+      - name: Deploy to Server via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          
+          # Befehle, die auf dem Server ausgeführt werden:
+          script: |
+            # 1. Neuestes Image von GHCR holen
+            docker pull ${{ env.IMAGE_NAME }}:latest
+            
+            # 2. Alten Container stoppen und löschen (falls vorhanden)
+            # "|| true" sorgt dafür, dass es keinen Fehler gibt, wenn der Container beim ersten Mal nicht existiert
+            docker stop penguin_classifier || true
+            docker rm penguin_classifier || true
+            
+            # 3. Neuen Container starten
+            docker run -d \
+              --name penguin_classifier \
+              --restart unless-stopped \
+              --network proxy-network \
+              ${{ env.IMAGE_NAME }}:latest
