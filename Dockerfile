@@ -23,4 +23,4 @@ EXPOSE 8501
 
 # 7. Definiere den Befehl, der beim Starten des Containers ausgeführt wird
 # Das startet deine Streamlit-App
-CMD ["streamlit", "run", "Live_demo.py"]
+CMD ["streamlit", "run", "Live_Demo.py"]
